@@ -59,6 +59,10 @@ function reducer(state, action) {
         },
       };
 
+    // clear cart items
+    case "CART_CLEAR_ITEMS":
+      return { ...state, cart: { ...state.cart, cartItems: [] } };
+
     // save payment method
     case "SAVE_PAYMENT_METHOD":
       return {
