@@ -1,10 +1,13 @@
-import Layout from "@/components/Layout";
-import { getError } from "@/utils/error";
+import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 import axios from "axios";
+import { useSession } from "next-auth/react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect, useReducer } from "react";
+import { toast } from "react-toastify";
+import { getError } from "@/utils/error";
+import Layout from "@/components/Layout";
 
 function reducer(state, action) {
   switch (action.type) {
@@ -14,15 +17,52 @@ function reducer(state, action) {
       return { ...state, loading: false, order: action.payload, error: "" };
     case "FETCH_FAIL":
       return { ...state, loading: false, error: action.payload };
+    case "PAY_REQUEST":
+      return { ...state, loadingPay: true };
+    case "PAY_SUCCESS":
+      return { ...state, loadingPay: false, successPay: true };
+    case "PAY_FAIL":
+      return { ...state, loadingPay: false, errorPay: action.payload };
+    case "PAY_RESET":
+      return { ...state, loadingPay: false, successPay: false, errorPay: "" };
+
+    case "DELIVER_REQUEST":
+      return { ...state, loadingDeliver: true };
+    case "DELIVER_SUCCESS":
+      return { ...state, loadingDeliver: false, successDeliver: true };
+    case "DELIVER_FAIL":
+      return { ...state, loadingDeliver: false };
+    case "DELIVER_RESET":
+      return {
+        ...state,
+        loadingDeliver: false,
+        successDeliver: false,
+      };
+
     default:
       state;
   }
 }
 function OrderScreen() {
+  const { data: session } = useSession();
+  // order/:id
+  const [{ isPending }, paypalDispatch] = usePayPalScriptReducer();
+
   const { query } = useRouter();
   const orderId = query.id;
 
-  const [{ loading, error, order }, dispatch] = useReducer(reducer, {
+  const [
+    {
+      loading,
+      error,
+      order,
+      successPay,
+      loadingPay,
+      loadingDeliver,
+      successDeliver,
+    },
+    dispatch,
+  ] = useReducer(reducer, {
     loading: true,
     order: {},
     error: "",
@@ -37,10 +77,34 @@ function OrderScreen() {
         dispatch({ type: "FETCH_FAIL", payload: getError(err) });
       }
     };
-    if (!order._id || (order._id && order._id !== orderId)) {
+    if (
+      !order._id ||
+      successPay ||
+      successDeliver ||
+      (order._id && order._id !== orderId)
+    ) {
       fetchOrder();
+      if (successPay) {
+        dispatch({ type: "PAY_RESET" });
+      }
+      if (successDeliver) {
+        dispatch({ type: "DELIVER_RESET" });
+      }
+    } else {
+      const loadPaypalScript = async () => {
+        const { data: clientId } = await axios.get("/api/keys/paypal");
+        paypalDispatch({
+          type: "resetOptions",
+          value: {
+            "client-id": clientId,
+            currency: "USD",
+          },
+        });
+        paypalDispatch({ type: "setLoadingStatus", value: "pending" });
+      };
+      loadPaypalScript();
     }
-  }, [order, orderId]);
+  }, [order, orderId, paypalDispatch, successDeliver, successPay]);
   const {
     shippingAddress,
     paymentMethod,
@@ -54,6 +118,55 @@ function OrderScreen() {
     isDelivered,
     deliveredAt,
   } = order;
+
+  function createOrder(data, actions) {
+    return actions.order
+      .create({
+        purchase_units: [
+          {
+            amount: { value: totalPrice },
+          },
+        ],
+      })
+      .then((orderID) => {
+        return orderID;
+      });
+  }
+
+  function onApprove(data, actions) {
+    return actions.order.capture().then(async function (details) {
+      try {
+        dispatch({ type: "PAY_REQUEST" });
+        const { data } = await axios.put(
+          `/api/orders/${order._id}/pay`,
+          details
+        );
+        dispatch({ type: "PAY_SUCCESS", payload: data });
+        toast.success("Order is paid successgully");
+      } catch (err) {
+        dispatch({ type: "PAY_FAIL", payload: getError(err) });
+        toast.error(getError(err));
+      }
+    });
+  }
+  function onError(err) {
+    toast.error(getError(err));
+  }
+
+  async function deliverOrderHandler() {
+    try {
+      dispatch({ type: "DELIVER_REQUEST" });
+      const { data } = await axios.put(
+        `/api/admin/orders/${order._id}/deliver`,
+        {}
+      );
+      dispatch({ type: "DELIVER_SUCCESS", payload: data });
+      toast.success("Order is delivered");
+    } catch (err) {
+      dispatch({ type: "DELIVER_FAIL", payload: getError(err) });
+      toast.error(getError(err));
+    }
+  }
 
   return (
     <Layout title={`Order ${orderId}`}>
@@ -104,17 +217,21 @@ function OrderScreen() {
                   {orderItems.map((item) => (
                     <tr key={item._id} className="border-b">
                       <td>
-                        <Link href={`/product/${item.slug}`}>
-                          <a className="flex items-center">
-                            <Image
-                              src={item.image}
-                              alt={item.name}
-                              width={50}
-                              height={50}
-                            ></Image>
-                            &nbsp;
-                            {item.name}
-                          </a>
+                        <Link
+                          href={`/product/${item.slug}`}
+                          className="flex items-center"
+                        >
+                          <Image
+                            src={item.image}
+                            alt={item.name}
+                            width={50}
+                            height={50}
+                            style={{
+                              maxWidth: "100%",
+                              height: "auto",
+                            }}
+                          ></Image>
+                          {item.name}
                         </Link>
                       </td>
                       <td className=" p-5 text-right">{item.quantity}</td>
@@ -156,6 +273,33 @@ function OrderScreen() {
                     <div>${totalPrice}</div>
                   </div>
                 </li>
+                {!isPaid && (
+                  <li>
+                    {isPending ? (
+                      <div>Loading...</div>
+                    ) : (
+                      <div className="w-full">
+                        <PayPalButtons
+                          createOrder={createOrder}
+                          onApprove={onApprove}
+                          onError={onError}
+                        ></PayPalButtons>
+                      </div>
+                    )}
+                    {loadingPay && <div>Loading...</div>}
+                  </li>
+                )}
+                {session.user.isAdmin && order.isPaid && !order.isDelivered && (
+                  <li>
+                    {loadingDeliver && <div>Loading...</div>}
+                    <button
+                      className="primary-button w-full"
+                      onClick={deliverOrderHandler}
+                    >
+                      Deliver Order
+                    </button>
+                  </li>
+                )}
               </ul>
             </div>
           </div>
