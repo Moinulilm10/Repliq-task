@@ -8,6 +8,7 @@ import { signOut, useSession } from "next-auth/react";
 import { Menu } from "@headlessui/react";
 import DropdownLink from "./DropdownLink";
 import Cookies from "js-cookie";
+import Image from "next/image";
 
 export default function Layout({ title, children }) {
   const { status, data: session } = useSession();
@@ -40,7 +41,7 @@ export default function Layout({ title, children }) {
         <header>
           <nav className="flex h-12 items-center px-4 justify-between shadow-md">
             <Link legacyBehavior href="/">
-              <a className="text-lg font-bold">amazona</a>
+              <a className="text-lg font-bold mr-6">Shopiffy</a>
             </Link>
             <div>
               <Link legacyBehavior href="/cart">
@@ -107,8 +108,82 @@ export default function Layout({ title, children }) {
           </nav>
         </header>
         <main className="container m-auto mt-4 px-4">{children}</main>
-        <footer className="flex h-10 justify-center items-center shadow-inner">
+        {/* <footer className="flex h-10 justify-center items-center shadow-inner">
           <p>Copyright © 2022 Amazona</p>
+        </footer> */}
+        <footer className="bg-gray-800 py-8">
+          <div className="container mx-auto px-4">
+            <div className="flex flex-wrap justify-between">
+              <div className="w-full md:w-1/3 lg:w-1/4 mb-4">
+                <h2 className="text-white text-lg font-bold mb-2">
+                  Company Name
+                </h2>
+                <p className="text-gray-400">shoppify</p>
+              </div>
+              <div className="w-full md:w-1/3 lg:w-1/4 mb-4">
+                <h2 className="text-white text-lg font-bold mb-2">
+                  Quick Links
+                </h2>
+                <ul>
+                  <li>
+                    <Link legacyBehavior href="/about">
+                      <a className="text-gray-400 hover:text-white">About</a>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link legacyBehavior href="/services">
+                      <a className="text-gray-400 hover:text-white">Services</a>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link legacyBehavior href="/blog">
+                      <a className="text-gray-400 hover:text-white">Blog</a>
+                    </Link>
+                  </li>
+                  <li>
+                    <Link legacyBehavior href="/contact">
+                      <a className="text-gray-400 hover:text-white">Contact</a>
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              <div className="w-full md:w-1/3 lg:w-1/4 mb-4">
+                <h2 className="text-white text-lg font-bold mb-2">
+                  Social Media
+                </h2>
+                <ul>
+                  <li>
+                    <a href="#" className="text-gray-400 hover:text-white">
+                      Facebook
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#" className="text-gray-400 hover:text-white">
+                      Twitter
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#" className="text-gray-400 hover:text-white">
+                      Instagram
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#" className="text-gray-400 hover:text-white">
+                      LinkedIn
+                    </a>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <div className="bg-gray-900 py-4">
+            <div className="container mx-auto px-4">
+              <p className="text-center text-gray-400">
+                &copy; {new Date().getFullYear()} Company Name. All Rights
+                Reserved.
+              </p>
+            </div>
+          </div>
         </footer>
       </div>
     </>
